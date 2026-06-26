@@ -185,6 +185,79 @@
     #status .warn { color: #fbbf24; }
     #status .err { color: #f87171; }
 
+    /* ── カメラ情報パネル ── */
+    #cameraPanel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 340px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      color: #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      z-index: 1000;
+      font-size: 12px;
+      font-family: 'Consolas', 'SFMono-Regular', monospace;
+    }
+
+    #cameraPanel h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #a78bfa;
+      margin-bottom: 10px;
+      font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+    }
+
+    .cam-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    }
+
+    .cam-label {
+      color: #94a3b8;
+    }
+
+    .cam-value {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    .copy-btn {
+      margin-top: 10px;
+      width: 100%;
+      padding: 8px;
+      font-size: 12px;
+      border: 1px solid #a78bfa;
+      background: rgba(167, 139, 250, 0.1);
+      color: #a78bfa;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+    }
+
+    .copy-btn:hover {
+      background: rgba(167, 139, 250, 0.2);
+    }
+
+    .copy-btn.copied {
+      border-color: #4ade80;
+      color: #4ade80;
+      background: rgba(74, 222, 128, 0.1);
+    }
+
+    #cameraPanel .hint {
+      margin-top: 8px;
+      font-size: 10px;
+      color: #64748b;
+      font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+      line-height: 1.4;
+    }
+
     /* ── クレジット表示 ── */
     #credit {
       position: absolute;
@@ -214,14 +287,14 @@
       <div class="water-level-display">
         <span id="waterValue">0.0</span><span class="unit">m</span>
       </div>
-      <input type="range" id="waterSlider" min="0" max="200" value="0" step="0.5">
+      <input type="range" id="waterSlider" min="0" max="100" value="0" step="0.5">
       <div class="preset-buttons">
         <button class="preset-btn" data-level="0">0m</button>
-        <button class="preset-btn" data-level="5">5m</button>
         <button class="preset-btn" data-level="10">10m</button>
-        <button class="preset-btn" data-level="20">20m</button>
         <button class="preset-btn" data-level="30">30m</button>
         <button class="preset-btn" data-level="50">50m</button>
+        <button class="preset-btn" data-level="70">70m</button>
+        <button class="preset-btn" data-level="100">100m</button>
       </div>
     </div>
 
@@ -247,9 +320,26 @@
     <div id="status">読み込み中...</div>
   </div>
 
+  <!-- カメラ情報パネル（初期位置設定用） -->
+  <div id="cameraPanel">
+    <h2>📷 カメラ情報（初期位置設定用）</h2>
+    <div class="cam-row"><span class="cam-label">経度 (lon)</span><span class="cam-value" id="camLon">-</span></div>
+    <div class="cam-row"><span class="cam-label">緯度 (lat)</span><span class="cam-value" id="camLat">-</span></div>
+    <div class="cam-row"><span class="cam-label">高度 (m)</span><span class="cam-value" id="camAlt">-</span></div>
+    <div class="cam-row"><span class="cam-label">向き heading (°)</span><span class="cam-value" id="camHead">-</span></div>
+    <div class="cam-row"><span class="cam-label">仰角 pitch (°)</span><span class="cam-value" id="camPitch">-</span></div>
+    <div class="cam-row"><span class="cam-label">回転 roll (°)</span><span class="cam-value" id="camRoll">-</span></div>
+    <button class="copy-btn" id="copyBtn">📋 初期位置コードとしてコピー</button>
+    <div class="hint">
+      好みのアングルに移動してからコピーボタンを押すと、<br>
+      コード冒頭の設定に貼り付けられる形式でコピーされます。
+    </div>
+  </div>
+
   <!-- クレジット表記 -->
   <div id="credit">
     3D都市モデル（国土交通省）を加工して作成 ｜
+    地理院タイル（国土地理院） ｜
     地形データは、測量法に基づく国土地理院長承認（使用）R3JHs 778を得て使用
   </div>
 
@@ -267,9 +357,22 @@
     // 地形データのアセットID（PLATEAU-Terrain）
     const TERRAIN_ASSET_ID = 2488101;
 
-    // 緑園都市の座標
-    const TARGET_LON = 139.5116;
-    const TARGET_LAT = 35.4076;
+    // ── 初期カメラ位置 ──
+    // ※ カメラ情報パネルでコピーした値をここに貼り付けてください
+    const INITIAL_CAMERA = {
+      lon: 139.5116,      // 経度
+      lat: 35.4076,       // 緯度
+      height: 1200,       // 高度 (m)
+      heading: 0,         // 向き (°)
+      pitch: -45,         // 仰角 (°)
+      roll: 0,            // 回転 (°)
+    };
+
+    // ── デフォルト水位 (m) ──
+    const DEFAULT_WATER_LEVEL = 0;
+
+    // 水位スライダーの最大値 (m)
+    const MAX_WATER_LEVEL = 100;
 
     // 水面ポリゴンの範囲（緑園都市周辺をカバーする矩形）
     const WATER_BOUNDS = {
@@ -280,23 +383,14 @@
     };
 
     // 建物データURL（PLATEAU配信サービス）
-    // ※ 横浜市全体のLOD1データ。
-    //    動かない場合は https://docs.plateauview.mlit.go.jp/datasets/explorer/
-    //    から横浜市泉区の建築物モデルURLを探して差し替えてください。
     const BUILDING_URLS = [
-      // 2023年度 横浜市の建物データ（泉区含む複数区を試行）
-      // 下記URLはデータカタログから取得する必要があります。
-      // まずは旧URL形式を試します。
-      //'https://plateau.geospatial.jp/main/data/3d-tiles/bldg/14100_yokohama-shi/14116_izumi-ku/lod1/tileset.json',
-      //'https://plateau.geospatial.jp/main/data/3d-tiles/bldg/14100_yokohama-shi/lod1/tileset.json',
-      'https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/14116-bldg-lod1-texture-2024/tileset.json'
+      'https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/14116-bldg-lod1-texture-2024/tileset.json',
     ];
 
     // ============================================================
     //  メイン処理
     // ============================================================
 
-    // Cesium ion トークン設定
     Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
 
     const statusEl = document.getElementById('status');
@@ -308,14 +402,13 @@
         setStatus('Viewerを初期化中...');
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
-          // PLATEAU-Ortho 航空写真
+          // 地理院タイル（航空写真）
           imageryProvider: new Cesium.UrlTemplateImageryProvider({
-            url: 'https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png',
-            maximumLevel: 19,
+            url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+            maximumLevel: 18,
+            credit: '地理院タイル',
           }),
-          // PLATEAU-Terrain 地形データ（Cesium ion経由 共有トークン利用）
           terrainProvider: await Cesium.CesiumTerrainProvider.fromIonAssetId(TERRAIN_ASSET_ID),
-          // UI簡略化
           animation: false,
           timeline: false,
           homeButton: false,
@@ -328,12 +421,57 @@
           infoBox: false,
         });
 
-        // 地形の上に建物が沈まないようにする
         viewer.scene.globe.depthTestAgainstTerrain = true;
+
+        // 地形に陰影をつけて凹凸を見やすくする
+        viewer.scene.globe.enableLighting = true;
+
+        // 地形の高低差を強調（1.0=等倍、大きいほど凹凸が目立つ）
+        viewer.scene.verticalExaggeration = 1.5;
 
         setStatus('<span class="ok">✓</span> Viewer初期化完了');
 
-        // ── 2. 建物データ読み込み ──
+        // ── 2. 建物の水没表現用シェーダー ──
+        const buildingShader = new Cesium.CustomShader({
+          uniforms: {
+            u_waterLevel: {
+              type: Cesium.UniformType.FLOAT,
+              value: DEFAULT_WATER_LEVEL,
+            },
+          },
+          // 建物の各ピクセルの標高を計算し、水位より低い部分を赤くする
+          fragmentShaderText: `
+            void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
+              // ECEF座標から楕円体高を計算（Bowring法）
+              vec3 p_wc = fsInput.attributes.positionWC;
+              float a = 6378137.0;
+              float b = 6356752.3142;
+              float e2 = 1.0 - (b * b) / (a * a);
+
+              float p_xy = sqrt(p_wc.x * p_wc.x + p_wc.y * p_wc.y);
+              float theta = atan(p_wc.z * a, p_xy * b);
+              float sinT = sin(theta);
+              float cosT = cos(theta);
+
+              float lat = atan(
+                p_wc.z + (a * a - b * b) / b * sinT * sinT * sinT,
+                p_xy - e2 * a * cosT * cosT * cosT
+              );
+
+              float sinLat = sin(lat);
+              float N = a / sqrt(1.0 - e2 * sinLat * sinLat);
+              float h = p_xy / cos(lat) - N;
+
+              // 水位以下の部分を赤く染める
+              if (u_waterLevel > 0.0 && h < u_waterLevel) {
+                float depth = clamp((u_waterLevel - h) / 5.0, 0.0, 1.0);
+                material.diffuse = mix(material.diffuse, vec3(0.9, 0.1, 0.05), depth * 0.8);
+              }
+            }
+          `,
+        });
+
+        // ── 3. 建物データ読み込み ──
         let tileset = null;
         let buildingLoaded = false;
 
@@ -341,6 +479,7 @@
           try {
             setStatus(`建物データを読み込み中...<br><span style="font-size:10px;color:#475569">${url.split('/').slice(-3).join('/')}</span>`);
             tileset = await Cesium.Cesium3DTileset.fromUrl(url);
+            tileset.customShader = buildingShader;
             viewer.scene.primitives.add(tileset);
             buildingLoaded = true;
             setStatus('<span class="ok">✓</span> 建物データ読み込み完了');
@@ -359,13 +498,17 @@
           );
         }
 
-        // ── 3. カメラを緑園都市へ移動 ──
+        // ── 3. カメラを初期位置へ移動 ──
         viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(TARGET_LON, TARGET_LAT, 1200),
+          destination: Cesium.Cartesian3.fromDegrees(
+            INITIAL_CAMERA.lon,
+            INITIAL_CAMERA.lat,
+            INITIAL_CAMERA.height
+          ),
           orientation: {
-            heading: Cesium.Math.toRadians(0),
-            pitch: Cesium.Math.toRadians(-45),
-            roll: 0,
+            heading: Cesium.Math.toRadians(INITIAL_CAMERA.heading),
+            pitch: Cesium.Math.toRadians(INITIAL_CAMERA.pitch),
+            roll: Cesium.Math.toRadians(INITIAL_CAMERA.roll),
           },
           duration: 2,
         });
@@ -379,34 +522,38 @@
               WATER_BOUNDS.east, WATER_BOUNDS.north,
               WATER_BOUNDS.west, WATER_BOUNDS.north,
             ]),
-            height: 0,
-            material: new Cesium.Color(0.1, 0.4, 0.9, 0.45),
+            height: DEFAULT_WATER_LEVEL,
+            material: new Cesium.Color(0.1, 0.4, 0.9, 0.3),
             outline: false,
           },
+          show: DEFAULT_WATER_LEVEL > 0,
         });
 
         // ── 5. UIイベント ──
 
-        // 水位スライダー
         const slider = document.getElementById('waterSlider');
         const valueDisplay = document.getElementById('waterValue');
 
         function updateWaterLevel(level) {
           valueDisplay.textContent = level.toFixed(1);
           waterEntity.polygon.height = level;
-          // 水位に応じて色を変える（高い＝危険度が高い＝赤みが増す）
-          const ratio = Math.min(level / 50, 1);
-          const r = 0.1 + ratio * 0.7;
-          const g = 0.4 - ratio * 0.2;
-          const b = 0.9 - ratio * 0.4;
-          waterEntity.polygon.material = new Cesium.Color(r, g, b, 0.45 + ratio * 0.15);
+          // 水位0なら水面を非表示
+          waterEntity.show = level > 0 && document.getElementById('waterToggle').checked;
+          // 水面は常に青（水位が高いほど少し濃くなる程度）
+          const ratio = Math.min(level / MAX_WATER_LEVEL, 1);
+          waterEntity.polygon.material = new Cesium.Color(0.1, 0.3, 0.8, 0.3 + ratio * 0.1);
+          // 建物シェーダーの水位も更新
+          buildingShader.setUniform('u_waterLevel', level);
         }
+
+        // デフォルト水位を適用
+        slider.value = DEFAULT_WATER_LEVEL;
+        updateWaterLevel(DEFAULT_WATER_LEVEL);
 
         slider.addEventListener('input', (e) => {
           updateWaterLevel(parseFloat(e.target.value));
         });
 
-        // プリセットボタン
         document.querySelectorAll('.preset-btn').forEach(btn => {
           btn.addEventListener('click', () => {
             const level = parseFloat(btn.dataset.level);
@@ -415,14 +562,69 @@
           });
         });
 
-        // 水面表示トグル
         document.getElementById('waterToggle').addEventListener('change', (e) => {
-          waterEntity.show = e.target.checked;
+          const level = parseFloat(slider.value);
+          waterEntity.show = e.target.checked && level > 0;
         });
 
-        // 建物表示トグル
         document.getElementById('buildingToggle').addEventListener('change', (e) => {
           if (tileset) tileset.show = e.target.checked;
+        });
+
+        // ── 6. カメラ情報のリアルタイム表示 ──
+        const camLon   = document.getElementById('camLon');
+        const camLat   = document.getElementById('camLat');
+        const camAlt   = document.getElementById('camAlt');
+        const camHead  = document.getElementById('camHead');
+        const camPitch = document.getElementById('camPitch');
+        const camRoll  = document.getElementById('camRoll');
+
+        function getCameraInfo() {
+          const pos = viewer.camera.positionCartographic;
+          return {
+            lon:     Cesium.Math.toDegrees(pos.longitude),
+            lat:     Cesium.Math.toDegrees(pos.latitude),
+            height:  pos.height,
+            heading: Cesium.Math.toDegrees(viewer.camera.heading),
+            pitch:   Cesium.Math.toDegrees(viewer.camera.pitch),
+            roll:    Cesium.Math.toDegrees(viewer.camera.roll),
+          };
+        }
+
+        // カメラ移動のたびに更新
+        viewer.camera.changed.addEventListener(() => {
+          const info = getCameraInfo();
+          camLon.textContent   = info.lon.toFixed(6);
+          camLat.textContent   = info.lat.toFixed(6);
+          camAlt.textContent   = info.height.toFixed(1);
+          camHead.textContent  = info.heading.toFixed(2);
+          camPitch.textContent = info.pitch.toFixed(2);
+          camRoll.textContent  = info.roll.toFixed(2);
+        });
+        // 感度を上げる（少しの動きでも更新）
+        viewer.camera.percentageChanged = 0.001;
+
+        // コピーボタン
+        document.getElementById('copyBtn').addEventListener('click', () => {
+          const info = getCameraInfo();
+          const code =
+`const INITIAL_CAMERA = {
+  lon: ${info.lon.toFixed(6)},
+  lat: ${info.lat.toFixed(6)},
+  height: ${info.height.toFixed(1)},
+  heading: ${info.heading.toFixed(2)},
+  pitch: ${info.pitch.toFixed(2)},
+  roll: ${info.roll.toFixed(2)},
+};`;
+          navigator.clipboard.writeText(code).then(() => {
+            const btn = document.getElementById('copyBtn');
+            btn.textContent = '✅ コピーしました！';
+            btn.classList.add('copied');
+            setTimeout(() => {
+              btn.textContent = '📋 初期位置コードとしてコピー';
+              btn.classList.remove('copied');
+            }, 2000);
+          });
         });
 
         // ステータス更新
