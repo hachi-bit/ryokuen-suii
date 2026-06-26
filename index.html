@@ -444,39 +444,34 @@
         setStatus('<span class="ok">✓</span> Viewer初期化完了');
 
         // ── 2. 建物の水没表現用シェーダー ──
+        // 基準点（地表）のECEF座標と「上」方向ベクトルをJS側（64bit精度）で計算
+        const surfaceCartesian = Cesium.Cartesian3.fromDegrees(TARGET_LON, TARGET_LAT, 0);
+        const upDirection = Cesium.Cartesian3.normalize(surfaceCartesian, new Cesium.Cartesian3());
+
         const buildingShader = new Cesium.CustomShader({
           uniforms: {
+            u_surfacePos: {
+              type: Cesium.UniformType.VEC3,
+              value: surfaceCartesian,
+            },
+            u_upDir: {
+              type: Cesium.UniformType.VEC3,
+              value: upDirection,
+            },
             u_waterLevel: {
               type: Cesium.UniformType.FLOAT,
               value: DEFAULT_WATER_LEVEL,
             },
           },
-          // 建物の各ピクセルの標高を計算し、水位より低い部分を赤くする
           fragmentShaderText: `
             void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
-              // ECEF座標から楕円体高を計算（Bowring法）
-              vec3 p_wc = fsInput.attributes.positionWC;
-              float a = 6378137.0;
-              float b = 6356752.3142;
-              float e2 = 1.0 - (b * b) / (a * a);
+              // 基準点からの差分ベクトル（小さい値なのでfloat32でも精度が保てる）
+              vec3 delta = fsInput.attributes.positionWC - u_surfacePos;
+              // 「上」方向への射影 ≒ 基準点からの相対的な高さ
+              float height = dot(delta, u_upDir);
 
-              float p_xy = sqrt(p_wc.x * p_wc.x + p_wc.y * p_wc.y);
-              float theta = atan(p_wc.z * a, p_xy * b);
-              float sinT = sin(theta);
-              float cosT = cos(theta);
-
-              float lat = atan(
-                p_wc.z + (a * a - b * b) / b * sinT * sinT * sinT,
-                p_xy - e2 * a * cosT * cosT * cosT
-              );
-
-              float sinLat = sin(lat);
-              float N = a / sqrt(1.0 - e2 * sinLat * sinLat);
-              float h = p_xy / cos(lat) - N;
-
-              // 水位以下の部分を赤く染める
-              if (u_waterLevel > 0.0 && h < u_waterLevel) {
-                float depth = clamp((u_waterLevel - h) / 5.0, 0.0, 1.0);
+              if (u_waterLevel > 0.0 && height < u_waterLevel) {
+                float depth = clamp((u_waterLevel - height) / 5.0, 0.0, 1.0);
                 material.diffuse = mix(material.diffuse, vec3(0.9, 0.1, 0.05), depth * 0.8);
               }
             }
