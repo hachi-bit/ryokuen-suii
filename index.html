@@ -402,12 +402,8 @@
         setStatus('Viewerを初期化中...');
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
-          // 地理院タイル（航空写真）
-          imageryProvider: new Cesium.UrlTemplateImageryProvider({
-            url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
-            maximumLevel: 18,
-            credit: '地理院タイル',
-          }),
+          // デフォルトの画像レイヤーを無効化
+          baseLayer: false,
           terrainProvider: await Cesium.CesiumTerrainProvider.fromIonAssetId(TERRAIN_ASSET_ID),
           animation: false,
           timeline: false,
@@ -422,6 +418,25 @@
         });
 
         viewer.scene.globe.depthTestAgainstTerrain = true;
+
+        // 地図画像レイヤーを追加（地理院タイル → OpenStreetMap の順に試行）
+        try {
+          viewer.imageryLayers.addImageryProvider(
+            new Cesium.UrlTemplateImageryProvider({
+              url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+              maximumLevel: 18,
+              credit: '地理院タイル',
+            })
+          );
+          console.log('地理院タイル（航空写真）を読み込み');
+        } catch (e) {
+          console.warn('地理院タイル読み込み失敗、OpenStreetMapにフォールバック:', e);
+          viewer.imageryLayers.addImageryProvider(
+            new Cesium.OpenStreetMapImageryProvider({
+              url: 'https://tile.openstreetmap.org/',
+            })
+          );
+        }
 
         // 地形に陰影をつけて凹凸を見やすくする
         viewer.scene.globe.enableLighting = true;
@@ -526,7 +541,7 @@
             material: new Cesium.Color(0.1, 0.4, 0.9, 0.3),
             outline: false,
           },
-          show: DEFAULT_WATER_LEVEL > 0,
+          show: true,
         });
 
         // ── 5. UIイベント ──
@@ -537,8 +552,7 @@
         function updateWaterLevel(level) {
           valueDisplay.textContent = level.toFixed(1);
           waterEntity.polygon.height = level;
-          // 水位0なら水面を非表示
-          waterEntity.show = level > 0 && document.getElementById('waterToggle').checked;
+          waterEntity.show = document.getElementById('waterToggle').checked;
           // 水面は常に青（水位が高いほど少し濃くなる程度）
           const ratio = Math.min(level / MAX_WATER_LEVEL, 1);
           waterEntity.polygon.material = new Cesium.Color(0.1, 0.3, 0.8, 0.3 + ratio * 0.1);
@@ -563,8 +577,7 @@
         });
 
         document.getElementById('waterToggle').addEventListener('change', (e) => {
-          const level = parseFloat(slider.value);
-          waterEntity.show = e.target.checked && level > 0;
+          waterEntity.show = e.target.checked;
         });
 
         document.getElementById('buildingToggle').addEventListener('change', (e) => {
