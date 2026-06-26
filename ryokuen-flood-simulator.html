@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>緑園都市 簡易浸水シミュレーター</title>
+
+  <!-- CesiumJS -->
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif; }
+
+    #cesiumContainer {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── コントロールパネル ── */
+    #panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 320px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      color: #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      z-index: 1000;
+      user-select: none;
+    }
+
+    #panel h1 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 4px;
+      letter-spacing: 0.02em;
+    }
+
+    #panel .subtitle {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-group label {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+
+    .water-level-display {
+      font-size: 36px;
+      font-weight: 800;
+      color: #38bdf8;
+      line-height: 1;
+    }
+
+    .water-level-display .unit {
+      font-size: 14px;
+      font-weight: 400;
+      color: #64748b;
+      margin-left: 4px;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #1e3a5f, #0ea5e9, #38bdf8);
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 3px solid #0f172a;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+      cursor: pointer;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.15);
+    }
+
+    .toggle-row span {
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      cursor: pointer;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #334155;
+      border-radius: 12px;
+      transition: background 0.2s;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: #e2e8f0;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: #0ea5e9;
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+    }
+
+    .preset-buttons {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .preset-btn {
+      padding: 4px 10px;
+      font-size: 11px;
+      border: 1px solid #334155;
+      background: transparent;
+      color: #94a3b8;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .preset-btn:hover {
+      border-color: #38bdf8;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    #status {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(148, 163, 184, 0.15);
+      line-height: 1.5;
+    }
+
+    #status .ok { color: #4ade80; }
+    #status .warn { color: #fbbf24; }
+    #status .err { color: #f87171; }
+
+    /* ── クレジット表示 ── */
+    #credit {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.6);
+      background: rgba(0,0,0,0.5);
+      padding: 4px 8px;
+      border-radius: 4px;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="cesiumContainer"></div>
+
+  <!-- コントロールパネル -->
+  <div id="panel">
+    <h1>簡易浸水シミュレーター</h1>
+    <div class="subtitle">緑園都市エリア ─ PLATEAU 3D都市モデル</div>
+
+    <!-- 水位スライダー -->
+    <div class="control-group">
+      <label>浸水水位（標高）</label>
+      <div class="water-level-display">
+        <span id="waterValue">0.0</span><span class="unit">m</span>
+      </div>
+      <input type="range" id="waterSlider" min="0" max="50" value="0" step="0.5">
+      <div class="preset-buttons">
+        <button class="preset-btn" data-level="0">0m</button>
+        <button class="preset-btn" data-level="5">5m</button>
+        <button class="preset-btn" data-level="10">10m</button>
+        <button class="preset-btn" data-level="20">20m</button>
+        <button class="preset-btn" data-level="30">30m</button>
+        <button class="preset-btn" data-level="50">50m</button>
+      </div>
+    </div>
+
+    <!-- 水面表示トグル -->
+    <div class="toggle-row">
+      <span>水面を表示</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="waterToggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <!-- 建物表示トグル -->
+    <div class="toggle-row">
+      <span>建物モデルを表示</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="buildingToggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <!-- ステータス -->
+    <div id="status">読み込み中...</div>
+  </div>
+
+  <!-- クレジット表記 -->
+  <div id="credit">
+    3D都市モデル（国土交通省）を加工して作成 ｜
+    地形データは、測量法に基づく国土地理院長承認（使用）R3JHs 778を得て使用
+  </div>
+
+  <script>
+    // ============================================================
+    //  設定（必要に応じてここを変更してください）
+    // ============================================================
+
+    // PLATEAU配信サービスの共有トークン（公式チュートリアル掲載のもの）
+    const PLATEAU_ION_TOKEN =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
+      'eyJqdGkiOiJlNjk0MTM4NC1lMWI0LTQxNTgtYjcxZS01ZWJhMGJlMTE1MWQiLCJpZCI6MTQ5ODk3LCJpYXQiOjE3MTUxNTEyODZ9.' +
+      '2aUmEQ2-fDsjf-XeC6-hZpwkgwLse3yXoXF4xTOvPAY';
+
+    // 地形データのアセットID（PLATEAU-Terrain）
+    const TERRAIN_ASSET_ID = 2488101;
+
+    // 緑園都市の座標
+    const TARGET_LON = 139.5116;
+    const TARGET_LAT = 35.4076;
+
+    // 水面ポリゴンの範囲（緑園都市周辺をカバーする矩形）
+    const WATER_BOUNDS = {
+      west:  139.48,
+      south: 35.38,
+      east:  139.54,
+      north: 35.44,
+    };
+
+    // 建物データURL（PLATEAU配信サービス）
+    // ※ 横浜市全体のLOD1データ。
+    //    動かない場合は https://docs.plateauview.mlit.go.jp/datasets/explorer/
+    //    から横浜市泉区の建築物モデルURLを探して差し替えてください。
+    const BUILDING_URLS = [
+      // 2023年度 横浜市の建物データ（泉区含む複数区を試行）
+      // 下記URLはデータカタログから取得する必要があります。
+      // まずは旧URL形式を試します。
+      'https://plateau.geospatial.jp/main/data/3d-tiles/bldg/14100_yokohama-shi/14116_izumi-ku/lod1/tileset.json',
+      'https://plateau.geospatial.jp/main/data/3d-tiles/bldg/14100_yokohama-shi/lod1/tileset.json',
+    ];
+
+    // ============================================================
+    //  メイン処理
+    // ============================================================
+
+    // Cesium ion トークン設定
+    Cesium.Ion.defaultAccessToken = PLATEAU_ION_TOKEN;
+
+    const statusEl = document.getElementById('status');
+    function setStatus(html) { statusEl.innerHTML = html; }
+
+    (async () => {
+      try {
+        // ── 1. Viewer作成 ──
+        setStatus('Viewerを初期化中...');
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+          // PLATEAU-Ortho 航空写真
+          imageryProvider: new Cesium.UrlTemplateImageryProvider({
+            url: 'https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png',
+            maximumLevel: 19,
+          }),
+          // PLATEAU-Terrain 地形データ（Cesium ion経由 共有トークン利用）
+          terrainProvider: await Cesium.CesiumTerrainProvider.fromIonAssetId(TERRAIN_ASSET_ID),
+          // UI簡略化
+          animation: false,
+          timeline: false,
+          homeButton: false,
+          geocoder: false,
+          sceneModePicker: false,
+          baseLayerPicker: false,
+          navigationHelpButton: false,
+          fullscreenButton: false,
+          selectionIndicator: false,
+          infoBox: false,
+        });
+
+        // 地形の上に建物が沈まないようにする
+        viewer.scene.globe.depthTestAgainstTerrain = true;
+
+        setStatus('<span class="ok">✓</span> Viewer初期化完了');
+
+        // ── 2. 建物データ読み込み ──
+        let tileset = null;
+        let buildingLoaded = false;
+
+        for (const url of BUILDING_URLS) {
+          try {
+            setStatus(`建物データを読み込み中...<br><span style="font-size:10px;color:#475569">${url.split('/').slice(-3).join('/')}</span>`);
+            tileset = await Cesium.Cesium3DTileset.fromUrl(url);
+            viewer.scene.primitives.add(tileset);
+            buildingLoaded = true;
+            setStatus('<span class="ok">✓</span> 建物データ読み込み完了');
+            break;
+          } catch (e) {
+            console.warn('建物データ読み込み失敗:', url, e.message);
+          }
+        }
+
+        if (!buildingLoaded) {
+          setStatus(
+            '<span class="warn">⚠</span> 建物データのURLが見つかりませんでした。<br>' +
+            '<a href="https://docs.plateauview.mlit.go.jp/datasets/explorer/" target="_blank" ' +
+            'style="color:#38bdf8;text-decoration:underline;">PLATEAU配信サービス</a> で' +
+            '横浜市泉区の建築物モデルURLを検索し、<br>コード冒頭の BUILDING_URLS を差し替えてください。'
+          );
+        }
+
+        // ── 3. カメラを緑園都市へ移動 ──
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(TARGET_LON, TARGET_LAT, 1200),
+          orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0,
+          },
+          duration: 2,
+        });
+
+        // ── 4. 水面エンティティの作成 ──
+        const waterEntity = viewer.entities.add({
+          polygon: {
+            hierarchy: Cesium.Cartesian3.fromDegreesArray([
+              WATER_BOUNDS.west, WATER_BOUNDS.south,
+              WATER_BOUNDS.east, WATER_BOUNDS.south,
+              WATER_BOUNDS.east, WATER_BOUNDS.north,
+              WATER_BOUNDS.west, WATER_BOUNDS.north,
+            ]),
+            height: 0,
+            material: new Cesium.Color(0.1, 0.4, 0.9, 0.45),
+            outline: false,
+          },
+        });
+
+        // ── 5. UIイベント ──
+
+        // 水位スライダー
+        const slider = document.getElementById('waterSlider');
+        const valueDisplay = document.getElementById('waterValue');
+
+        function updateWaterLevel(level) {
+          valueDisplay.textContent = level.toFixed(1);
+          waterEntity.polygon.height = level;
+          // 水位に応じて色を変える（高い＝危険度が高い＝赤みが増す）
+          const ratio = Math.min(level / 50, 1);
+          const r = 0.1 + ratio * 0.7;
+          const g = 0.4 - ratio * 0.2;
+          const b = 0.9 - ratio * 0.4;
+          waterEntity.polygon.material = new Cesium.Color(r, g, b, 0.45 + ratio * 0.15);
+        }
+
+        slider.addEventListener('input', (e) => {
+          updateWaterLevel(parseFloat(e.target.value));
+        });
+
+        // プリセットボタン
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const level = parseFloat(btn.dataset.level);
+            slider.value = level;
+            updateWaterLevel(level);
+          });
+        });
+
+        // 水面表示トグル
+        document.getElementById('waterToggle').addEventListener('change', (e) => {
+          waterEntity.show = e.target.checked;
+        });
+
+        // 建物表示トグル
+        document.getElementById('buildingToggle').addEventListener('change', (e) => {
+          if (tileset) tileset.show = e.target.checked;
+        });
+
+        // ステータス更新
+        if (buildingLoaded) {
+          setStatus(
+            '<span class="ok">✓</span> 準備完了<br>' +
+            'スライダーで水位を変更してください。<br>' +
+            'マウスドラッグで回転、右ドラッグでズーム、ホイールで拡大縮小。'
+          );
+        }
+
+      } catch (err) {
+        console.error(err);
+        setStatus(`<span class="err">✗ エラー:</span> ${err.message}`);
+      }
+    })();
+  </script>
+</body>
+</html>
