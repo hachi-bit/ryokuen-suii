@@ -157,6 +157,29 @@
       box-shadow: 0 0 10px rgba(56,189,248,0.5);
       cursor: pointer;
     }
+    #rangeBtn {
+      background: rgba(148,163,184,0.15);
+      border: 1px solid #334155;
+      color: #94a3b8;
+      border-radius: 8px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 14px;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      transition: all 0.15s;
+    }
+    #rangeBtn:hover {
+      border-color: #38bdf8;
+      color: #38bdf8;
+      background: rgba(56,189,248,0.08);
+    }
+    #rangeLabel {
+      font-size: 11px;
+      font-family: 'Segoe UI', sans-serif;
+    }
 
     /* ── クレジット ── */
     #credit {
@@ -215,7 +238,7 @@
   </div>
 
   <!-- カメラパネル（右上） -->
-  <div id="cameraPanel" class="panel">
+  <div id="cameraPanel" class="panel" style="display:none;">
     <div class="panel-icon">📷</div>
     <button class="panel-toggle" id="cameraPanelToggle">−</button>
     <div class="panel-body">
@@ -236,6 +259,7 @@
     <div class="slider-label">水位</div>
     <div class="slider-value"><span id="waterValue">65.0</span><span class="unit">m</span></div>
     <input type="range" id="waterSlider" min="0" max="100" value="65" step="0.1">
+    <button id="rangeBtn" title="スライダーの最大値を切り替え">📏<span id="rangeLabel">100</span></button>
   </div>
 
   <div id="credit">
@@ -264,13 +288,13 @@
     };
 
     const DEFAULT_WATER_LEVEL = 65;
-    const MAX_WATER_LEVEL = 100;
+    const MAX_WATER_LEVEL = 300;
 
     const WATER_BOUNDS = {
-      west:  139.35,
-      south: 35.35,
-      east:  139.65,
-      north: 35.55,
+      west:  122.0,
+      south: 20.0,
+      east:  154.0,
+      north: 46.0,
     };
 
     const BUILDING_URLS = [
@@ -423,6 +447,21 @@
         document.getElementById('floodColorToggle').addEventListener('change', (e) => {
           floodColorEnabled = e.target.checked;
           buildingShader.setUniform('u_colorOn', floodColorEnabled ? 1.0 : 0.0);
+        });
+
+        // レンジ切り替え
+        const ranges = [100, 200, 300];
+        let rangeIndex = 0;
+        document.getElementById('rangeBtn').addEventListener('click', () => {
+          rangeIndex = (rangeIndex + 1) % ranges.length;
+          const newMax = ranges[rangeIndex];
+          slider.max = newMax;
+          document.getElementById('rangeLabel').textContent = newMax;
+          // 現在値がはみ出たらクランプ
+          if (parseFloat(slider.value) > newMax) {
+            slider.value = newMax;
+            updateWaterLevel(newMax);
+          }
         });
 
         // ── カメラ情報 ──
