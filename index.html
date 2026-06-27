@@ -299,6 +299,7 @@
 
     const BUILDING_URLS = [
       'https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/14116-bldg-lod1-texture-2024/tileset.json',
+      'https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/14112-bldg-lod1-texture-2024/tileset.json',
     ];
 
     // ============================================================
@@ -368,24 +369,24 @@
         });
 
         // ── 建物データ ──
-        let tileset = null;
-        let buildingLoaded = false;
+        const tilesets = [];
+        let loadedCount = 0;
 
         for (const url of BUILDING_URLS) {
           try {
-            setStatus('建物データを読み込み中...');
-            tileset = await Cesium.Cesium3DTileset.fromUrl(url);
-            tileset.customShader = buildingShader;
-            viewer.scene.primitives.add(tileset);
-            buildingLoaded = true;
-            setStatus('<span class="ok">✓</span> 建物データ読み込み完了');
-            break;
+            setStatus(`建物データを読み込み中... (${loadedCount}/${BUILDING_URLS.length})`);
+            const ts = await Cesium.Cesium3DTileset.fromUrl(url);
+            ts.customShader = buildingShader;
+            viewer.scene.primitives.add(ts);
+            tilesets.push(ts);
+            loadedCount++;
+            setStatus(`<span class="ok">✓</span> 建物データ ${loadedCount}/${BUILDING_URLS.length} 読み込み完了`);
           } catch (e) {
             console.warn('建物データ読み込み失敗:', url, e.message);
           }
         }
 
-        if (!buildingLoaded) {
+        if (tilesets.length === 0) {
           setStatus(
             '<span class="warn">⚠</span> 建物データURL不明。' +
             '<a href="https://docs.plateauview.mlit.go.jp/datasets/explorer/" target="_blank" ' +
@@ -441,7 +442,7 @@
         });
 
         document.getElementById('buildingToggle').addEventListener('change', (e) => {
-          if (tileset) tileset.show = e.target.checked;
+          tilesets.forEach(ts => ts.show = e.target.checked);
         });
 
         document.getElementById('floodColorToggle').addEventListener('change', (e) => {
@@ -538,7 +539,7 @@
         setupToggle('panel', 'panelToggle');
         setupToggle('cameraPanel', 'cameraPanelToggle');
 
-        if (buildingLoaded) {
+        if (tilesets.length > 0) {
           setStatus('<span class="ok">✓</span> 準備完了');
         }
 
