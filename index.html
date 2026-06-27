@@ -445,7 +445,7 @@
 
         // ── 2. 建物の水没表現用シェーダー ──
         // 基準点（地表）のECEF座標と「上」方向ベクトルをJS側（64bit精度）で計算
-        const surfaceCartesian = Cesium.Cartesian3.fromDegrees(TARGET_LON, TARGET_LAT, 0);
+        const surfaceCartesian = Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat, 0);
         const upDirection = Cesium.Cartesian3.normalize(surfaceCartesian, new Cesium.Cartesian3());
 
         const buildingShader = new Cesium.CustomShader({
