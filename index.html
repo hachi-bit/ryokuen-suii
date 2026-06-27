@@ -256,9 +256,9 @@
 
   <!-- 水位スライダー（画面下部・常時表示） -->
   <div id="sliderBar">
-    <div class="slider-label">水位</div>
-    <div class="slider-value"><span id="waterValue">65.0</span><span class="unit">m</span></div>
-    <input type="range" id="waterSlider" min="0" max="100" value="65" step="0.1">
+    <div class="slider-label">海抜</div>
+    <div class="slider-value"><span id="waterValue">25.0</span><span class="unit">m</span></div>
+    <input type="range" id="waterSlider" min="0" max="100" value="25" step="0.1">
     <button id="rangeBtn" title="スライダーの最大値を切り替え">📏<span id="rangeLabel">100</span></button>
   </div>
 
@@ -287,8 +287,11 @@
       roll: 0.00,
     };
 
-    const DEFAULT_WATER_LEVEL = 65;
+    const DEFAULT_WATER_LEVEL = 25;
     const MAX_WATER_LEVEL = 300;
+
+    // ジオイド高（横浜付近）：楕円体高 = 海抜 + GEOID_HEIGHT
+    const GEOID_HEIGHT = 37;
 
     const WATER_BOUNDS = {
       west:  139.30,
@@ -348,7 +351,7 @@
         // ── シェーダー（楕円体テスト方式） ──
         const buildingShader = new Cesium.CustomShader({
           uniforms: {
-            u_waterLevel: { type: Cesium.UniformType.FLOAT, value: DEFAULT_WATER_LEVEL },
+            u_waterLevel: { type: Cesium.UniformType.FLOAT, value: DEFAULT_WATER_LEVEL + GEOID_HEIGHT },
             u_colorOn:    { type: Cesium.UniformType.FLOAT, value: 1.0 },
           },
           fragmentShaderText: `
@@ -430,9 +433,9 @@
         const valueDisplay = document.getElementById('waterValue');
 
         function updateWaterLevel(level) {
-          currentWaterLevel = level;
+          currentWaterLevel = level + GEOID_HEIGHT; // 海抜→楕円体高に変換（水面用）
           valueDisplay.textContent = level.toFixed(1);
-          buildingShader.setUniform('u_waterLevel', level);
+          buildingShader.setUniform('u_waterLevel', level + GEOID_HEIGHT); // シェーダーも楕円体高
         }
 
         slider.value = DEFAULT_WATER_LEVEL;
