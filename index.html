@@ -345,24 +345,28 @@
         viewer.scene.globe.enableLighting = true;
         setStatus('<span class="ok">✓</span> Viewer初期化完了');
 
-        // ── シェーダー ──
-        const surfaceCartesian = Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA.lon, INITIAL_CAMERA.lat, 0);
-        const upDirection = Cesium.Cartesian3.normalize(surfaceCartesian, new Cesium.Cartesian3());
-
+        // ── シェーダー（楕円体テスト方式） ──
         const buildingShader = new Cesium.CustomShader({
           uniforms: {
-            u_surfacePos: { type: Cesium.UniformType.VEC3, value: surfaceCartesian },
-            u_upDir:      { type: Cesium.UniformType.VEC3, value: upDirection },
             u_waterLevel: { type: Cesium.UniformType.FLOAT, value: DEFAULT_WATER_LEVEL },
             u_colorOn:    { type: Cesium.UniformType.FLOAT, value: 1.0 },
           },
           fragmentShaderText: `
             void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
-              if (u_colorOn < 0.5) return;
-              vec3 delta = fsInput.attributes.positionWC - u_surfacePos;
-              float height = dot(delta, u_upDir);
-              if (u_waterLevel > 0.0 && height < u_waterLevel) {
-                float depth = clamp((u_waterLevel - height) / 5.0, 0.0, 1.0);
+              if (u_colorOn < 0.5 || u_waterLevel <= 0.0) return;
+
+              vec3 p = fsInput.attributes.positionWC;
+
+              // WGS84楕円体 + 水位 = 水面楕円体
+              float a_w = 6378137.0 + u_waterLevel;
+              float b_w = 6356752.3 + u_waterLevel;
+
+              // 楕円体の内外判定: < 1.0 なら水面より下
+              float test = (p.x * p.x + p.y * p.y) / (a_w * a_w)
+                         + (p.z * p.z) / (b_w * b_w);
+
+              if (test < 1.0) {
+                float depth = clamp((1.0 - test) * 637813.0, 0.0, 1.0);
                 material.diffuse = mix(material.diffuse, vec3(0.9, 0.1, 0.05), depth * 0.8);
               }
             }
